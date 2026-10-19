@@ -1,12 +1,15 @@
 name: Release
 
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag (for example v2.2.4)"
+        description: "Existing tag to release (for example v2.2.4)"
         required: true
         type: string
 
@@ -15,35 +18,66 @@ permissions:
 
 jobs:
   release:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout tagged commit
+      - name: Checkout exact verified revision
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref) }}
           persist-credentials: false
-      - name: Set up Python
+      - name: Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Verify source and run tests
+      - name: Verify source and test
         run: |
           python -m py_compile SendToCom.py scripts/package_release.py
           python -m unittest discover -s tests -v
           python SendToCom.py --help
-      - name: Package source ZIP and checksum
-        env:
-          VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      - name: Package version-checked release
         run: python scripts/package_release.py
-      - name: Publish GitHub Release
+      - name: Create tag and release (only after green main CI), or release existing tag
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+          CHECKOUT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if gh release view "$VERSION_TAG" >/dev/null 2>&1; then
-            echo "Release $VERSION_TAG already exists; nothing to publish."
-            exit 0
+          SOURCE_TAG="$(python -c 'from scripts.package_release import source_version; print("v" + source_version())')"
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            CURRENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$CURRENT_SHA" != "$VERIFIED_SHA" ]]; then
+              echo "main has advanced beyond validated CI commit; skip."
+              exit 0
+            fi
+            TAG="$SOURCE_TAG"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG already exists; skip."
+              exit 0
+            fi
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists; do not move or recreate it."
+              exit 0
+            fi
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS.txt --target "$VERIFIED_SHA" --title "BASKA SEND $TAG" --generate-notes
+          else
+            if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then TAG="$MANUAL_TAG"; else TAG="$REF_NAME"; fi
+            if [[ "$TAG" != "$SOURCE_TAG" ]]; then
+              echo "Tag $TAG does not match source VERSION $SOURCE_TAG" >&2
+              exit 1
+            fi
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG already exists; skip."
+              exit 0
+            fi
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS.txt --title "BASKA SEND $TAG" --generate-notes --verify-tag
           fi
-          gh release create "$VERSION_TAG" dist/*.zip dist/SHA256SUMS.txt --title "BASKA SEND $VERSION_TAG" --generate-notes --verify-tag
