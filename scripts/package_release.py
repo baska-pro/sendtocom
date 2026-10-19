@@ -15,6 +15,7 @@ FILES = [
     "SendToCom.py", "README.md", "LICENSE", "SECURITY.md", "CHANGELOG.md",
     "docs/INSTALLATION.md", "docs/TROUBLESHOOTING.md",
     "docs/ARCHITECTURE.md", "assets/banner.svg", "assets/logo.svg",
+    "assets/social-preview.png",
 ]
 
 
