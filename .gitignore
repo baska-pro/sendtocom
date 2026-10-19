@@ -1,0 +1,46 @@
+# Python and tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime and sensitive local information
+config.json
+messages.db
+messages.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+FIRST_RUN_PIN.txt
+*.log
+logs/
+uploads/
+outbox/
+received/
+downloads/
+backup/
+backups/
+*.bak
+*.tmp
+*.zip
+*.sha256
+SHA256SUMS.txt
+.env
+.env.*
+!.env.example

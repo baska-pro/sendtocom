@@ -1,0 +1,20 @@
+name: Feature request
+description: Usulkan peningkatan aplikasi
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Masalah yang ingin diselesaikan
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solusi yang diusulkan
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Risiko keamanan dan alternatif
